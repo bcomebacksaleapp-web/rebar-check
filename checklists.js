@@ -6,6 +6,10 @@ export const ELEMENTS = {
   footing: { label: 'ฐานราก', items: [
     { id: 'id',     t: 'ป้ายตำแหน่ง/ชิ้นงาน + ภาพรวมหลุมฐานราก', kind: null, shots: 'wide' },
     { id: 'size',   t: 'ขนาดและความลึกฐานราก', kind: 'floor', shots: 'both' },
+    { id: 'pile_head',  t: 'หัวเสาเข็ม: สภาพหลังสกัดหัว + ระดับตัดหัวเสาเข็ม (cut-off)', kind: null, shots: 'both' },
+    { id: 'pile_dowel', t: 'เหล็ก Dowel หัวเสาเข็ม: จำนวน ขนาด ตำแหน่งในหน้าตัดเสาเข็ม', kind: null, shots: 'both' },
+    { id: 'pile_dsp',   t: 'เหล็ก Dowel หัวเสาเข็ม: ระยะห่างระหว่างเหล็ก', kind: 'rebar', shots: 'both' },
+    { id: 'pile_dlen',  t: 'เหล็ก Dowel หัวเสาเข็ม: ความยาวฝังเข้าฐานราก/ความยาวทาบ', kind: 'dowel', shots: 'both' },
     { id: 'rebar',  t: 'เหล็กล่าง/บน ขนาดและระยะห่าง', kind: 'rebar', shots: 'both' },
     { id: 'cover',  t: 'ระยะหุ้มเหล็ก (ลูกปูน/ก้อนหนุน)', kind: 'cover', shots: 'both' },
     { id: 'dowel',  t: 'เหล็กเสียบเสา ตำแหน่งและความยาวทาบ', kind: null, shots: 'both' },

@@ -12,6 +12,7 @@ const QS = new URLSearchParams(location.search);
 const KINDS = {
   rebar: { label: 'เหล็กเสริม · ระยะห่าง', rule: 'tol', tol: 10 },
   cover: { label: 'ระยะหุ้มเหล็ก (cover)', rule: 'min', tol: 0 },
+  dowel: { label: 'Dowel หัวเสาเข็ม · ความยาวฝังในฐานราก', rule: 'min', tol: 0 },
   wallclear: { label: 'ผนัง · เคลียร์ใน / เคลียร์นอก', rule: 'min', tol: 0, dual: true },
   slabclear: { label: 'พื้น · เคลียร์ใน / เคลียร์นอก', rule: 'min', tol: 0, dual: true },
   beamclear: { label: 'คาน · เคลียร์ใน / เคลียร์นอก', rule: 'min', tol: 0, dual: true },
