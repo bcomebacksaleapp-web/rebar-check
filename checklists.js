@@ -41,6 +41,7 @@ export const ELEMENTS = {
     { id: 'rebar',  t: 'เหล็กตั้ง/นอน ขนาดและระยะห่าง', kind: 'rebar', shots: 'both' },
     { id: 'thick',  t: 'ความหนาผนัง (วัดระหว่างแบบ)', kind: 'wall', shots: 'both' },
     { id: 'tie',    t: 'เหล็กยึดแบบ/ตัวคั่น (spacer) และระยะหุ้ม', kind: 'cover', shots: 'both' },
+    { id: 'clear',  t: 'เคลียร์ใน / เคลียร์นอก (เหล็กถึงผิวแบบทั้งสองด้าน)', kind: 'wallclear', shots: 'both' },
     { id: 'dowel',  t: 'เหล็กเสียบ/ต่อทาบกับพื้น-คาน', kind: null, shots: 'both' },
     { id: 'plumb',  t: 'ความดิ่งและการค้ำยันแบบ', kind: null, shots: 'wide' },
   ]},

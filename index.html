@@ -167,8 +167,12 @@
       <figure><img id="imgTape" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""><figcaption>ซูม ตลับเมตร+ป้าย <button type="button" class="link" data-retake="tape">ถ่ายใหม่</button></figcaption><p id="qcTape" class="qc"></p></figure>
     </div>
     <div class="grid2">
-      <label>ค่าที่วัดได้ (<span class="u">ม.</span>)<input id="rMeasured" type="number" inputmode="decimal" step="any"></label>
+      <label id="lMeasured">ค่าที่วัดได้ (<span class="u">ม.</span>)<input id="rMeasured" type="number" inputmode="decimal" step="any"></label>
       <div class="result"><span>ผล</span><b id="rResult">—</b></div>
+    </div>
+    <div id="dualBox" class="grid2" hidden>
+      <label>เคลียร์ใน (<span class="u">ม.</span>)<input id="rIn" type="number" inputmode="decimal" step="0.01"></label>
+      <label>เคลียร์นอก (<span class="u">ม.</span>)<input id="rOut" type="number" inputmode="decimal" step="0.01"></label>
     </div>
     <label>หมายเหตุ<textarea id="rNote" rows="2"></textarea></label>
     <div class="btns">

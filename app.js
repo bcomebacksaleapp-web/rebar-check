@@ -12,6 +12,7 @@ const QS = new URLSearchParams(location.search);
 const KINDS = {
   rebar: { label: 'เหล็กเสริม · ระยะห่าง', rule: 'tol', tol: 10 },
   cover: { label: 'ระยะหุ้มเหล็ก (cover)', rule: 'min', tol: 0 },
+  wallclear: { label: 'ผนัง · เคลียร์ใน / เคลียร์นอก', rule: 'min', tol: 0, dual: true },
   wall:  { label: 'ความหนาผนัง', rule: 'tol', tol: 10 },
   floor: { label: 'ความหนาพื้น', rule: 'tol', tol: 10 },
 };
@@ -56,9 +57,19 @@ const toU = mm => (mm == null || mm === '') ? mm : (unitM() ? +(mm / 1000).toFix
 const fmtU = mm => (mm == null || mm === '') ? '' : (unitM() ? (mm / 1000).toFixed(2) : String(mm));   // 0.xx ม.
 const fromU = v => (v === '' || v == null) ? null : (unitM() ? +(+v * 1000).toFixed(2) : +v);
 const ruleText = r => `${r.rule === 'min' ? '≥ ' + fmtU(r.spec) : fmtU(r.spec) + ' ± ' + fmtU(r.tol)} ${U()}`;
+const measText = r => KINDS[r.kind].dual
+  ? `ใน ${fmtU(r.clearIn) || '-'} · นอก ${fmtU(r.clearOut) || '-'} ${U()}`
+  : `${fmtU(r.measured)} ${U()}`;
+function applyMeas(r) {   // อ่านค่าที่วัดจากฟอร์ม (ผนังเคลียร์ = 2 ค่า ใช้ค่าที่น้อยกว่าตัดสิน)
+  if (KINDS[r.kind].dual) {
+    r.clearIn = fromU($('#rIn').value); r.clearOut = fromU($('#rOut').value);
+    r.measured = (r.clearIn != null && r.clearOut != null) ? Math.min(r.clearIn, r.clearOut) : null;
+  } else r.measured = fromU($('#rMeasured').value);
+  return r;
+}
 function setUnitLabels() {
   $$('.u').forEach(e => e.textContent = U());
-  ['#iSpec', '#iTol', '#rMeasured'].forEach(id => { $(id).step = unitM() ? '0.01' : 'any'; $(id).placeholder = unitM() ? '0.00' : ''; });
+  ['#iSpec', '#iTol', '#rMeasured', '#rIn', '#rOut'].forEach(id => { $(id).step = unitM() ? '0.01' : 'any'; $(id).placeholder = unitM() ? '0.00' : ''; });
 }
 let urlPool = [];
 const mkUrl = b => { const u = URL.createObjectURL(b); urlPool.push(u); return u; };
@@ -321,7 +332,7 @@ async function renderList() {
   $('#empty').hidden = recs.length > 0;
   $('#recs').innerHTML = recs.map(r => {
     const j = judge(r), img = r.shots.tape || r.shots.wide;
-    return `<li data-id="${r.id}"><img alt="" src="${img ? mkUrl(img.blob) : ''}"><div class="main"><div class="t">${esc(r.label)}</div>${r.element ? `<div class="m">☑ ${esc(ELEMENTS[r.element]?.label)} · ${esc(ELEMENTS[r.element]?.items.find(i => i.id === r.checkId)?.t || '')}</div>` : ''}<div class="m">${esc(KINDS[r.kind].label)} · ${ruleText(r)}</div><div class="m">${r.measured != null && r.measured !== '' ? 'วัดได้ ' + fmtU(r.measured) + ' ' + U() + ' · ' : ''}${fmtTime(r.createdAt)}</div></div>
+    return `<li data-id="${r.id}"><img alt="" src="${img ? mkUrl(img.blob) : ''}"><div class="main"><div class="t">${esc(r.label)}</div>${r.element ? `<div class="m">☑ ${esc(ELEMENTS[r.element]?.label)} · ${esc(ELEMENTS[r.element]?.items.find(i => i.id === r.checkId)?.t || '')}</div>` : ''}<div class="m">${esc(KINDS[r.kind].label)} · ${ruleText(r)}</div><div class="m">${r.measured != null && r.measured !== '' ? 'วัดได้ ' + measText(r) + ' · ' : ''}${fmtTime(r.createdAt)}</div></div>
       <span class="chip ${blur(r) && j === 'pending' ? 'blur' : j}">${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: blur(r) ? 'ไม่คม' : 'รอวัด' }[j]}</span></li>`;
   }).join('');
   $$('#recs li').forEach(li => li.onclick = async () => openReview((await dbAll('records')).find(r => r.id === li.dataset.id), false));
@@ -379,18 +390,20 @@ function openReview(rec, isNew) {
     const s = rec.shots[step]; $('#img' + id).src = s ? mkUrl(s.blob) : $('#img' + id).src;
     const [t, c] = qcText(step, s); const q = $('#qc' + id); q.textContent = t; q.className = 'qc ' + c;
   }
-  $('#rMeasured').value = fmtU(rec.measured); $('#rNote').value = rec.note || '';
+  $('#rMeasured').value = fmtU(rec.measured);
+  const dual = !!KINDS[rec.kind].dual; $('#lMeasured').hidden = dual; $('#dualBox').hidden = !dual;
+  $('#rIn').value = fmtU(rec.clearIn); $('#rOut').value = fmtU(rec.clearOut); $('#rNote').value = rec.note || '';
   $('#rDelete').hidden = isNew; $('#rShare').hidden = false; updResult();
   if (!$('#dlgReview').open) $('#dlgReview').showModal();
 }
 function updResult() {
-  const m = $('#rMeasured').value; const r = { ...cur, measured: fromU(m) }; const j = judge(r);
+  const m = $('#rMeasured').value; const r = applyMeas({ ...cur }); const j = judge(r);
   const b = $('#rResult'); b.textContent = { pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: '—' }[j]; b.className = j;
 }
-$('#rMeasured').addEventListener('input', updResult);
+['#rMeasured', '#rIn', '#rOut'].forEach(id => $(id).addEventListener('input', updResult));
 $$('[data-retake]').forEach(b => b.onclick = () => { $('#dlgReview').close(); openCamera(cur, [b.dataset.retake], curNew); });
 $('#fReview').addEventListener('submit', async () => {
-  const m = $('#rMeasured').value; cur.measured = fromU(m); cur.note = $('#rNote').value;
+  const m = $('#rMeasured').value; applyMeas(cur); cur.note = $('#rNote').value;
   await dbPut('records', cur); toast('บันทึกแล้ว'); renderList();
 });
 $('#dlgReview').addEventListener('cancel', () => { if (curNew) { /* ยังไม่บันทึก: ถือว่ายกเลิก */ } });
@@ -408,7 +421,7 @@ async function stamped(rec, step) {
   const x = cv.getContext('2d'); x.drawImage(bmp, 0, 0);
   const fs = Math.round(bw / 34), pad = fs * .6;
   const lines = [`${rec.job || ''} · ${rec.label}`,
-    `${KINDS[rec.kind].label} · เกณฑ์ ${ruleText(rec)}${rec.measured != null ? ' · วัดได้ ' + fmtU(rec.measured) + ' ' + U() + ' (' + { pass: 'ผ่าน', fail: 'ไม่ผ่าน' }[judge(rec)] + ')' : ''}`,
+    `${KINDS[rec.kind].label} · เกณฑ์ ${ruleText(rec)}${rec.measured != null ? ' · วัดได้ ' + measText(rec) + ' (' + { pass: 'ผ่าน', fail: 'ไม่ผ่าน' }[judge(rec)] + ')' : ''}`,
     `${fmtTime(s.at)} · ${step === 'wide' ? '1×' : 'ซูม ' + (s.zoom ?? '?') + '×'} · คม ${s.sharp}${rec.gps ? ` · ${rec.gps.lat.toFixed(5)},${rec.gps.lng.toFixed(5)}` : ''}`];
   const h = lines.length * fs * 1.3 + pad * 2;
   x.fillStyle = 'rgba(0,0,0,.65)'; x.fillRect(0, cv.height - h, cv.width, h);
@@ -420,7 +433,7 @@ function download(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 $('#rShare').onclick = async () => {
-  const m = $('#rMeasured').value; cur.measured = fromU(m);
+  const m = $('#rMeasured').value; applyMeas(cur);
   const safe = cur.label.replace(/[^\w฀-๿-]+/g, '_');
   const files = [];
   for (const st of ['wide', 'tape']) { const b = await stamped(cur, st); if (b) files.push(new File([b], `${safe}_${st}.jpg`, { type: 'image/jpeg' })); }
@@ -437,7 +450,7 @@ $('#btnReport').onclick = async () => {
   const urls = [];
   const imgs = async r => { let h = ''; for (const st of ['wide', 'tape']) { const b = await stamped(r, st); if (b) { const u = URL.createObjectURL(b); urls.push(u); h += `<img src="${u}" alt="">`; } } return h; };
   let html = `<h2>${esc(S.job || 'รายงานตรวจ')} — ผู้ตรวจ ${esc(S.inspector)}</h2>`;
-  for (const r of recs) html += `<div class="pr"><h3>${esc(r.label)} · ${esc(KINDS[r.kind].label)} · เกณฑ์ ${ruleText(r)} · วัดได้ ${r.measured != null ? fmtU(r.measured) + ' ' + U() : '-'} · ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}</h3>${await imgs(r)}</div>`;
+  for (const r of recs) html += `<div class="pr"><h3>${esc(r.label)} · ${esc(KINDS[r.kind].label)} · เกณฑ์ ${ruleText(r)} · วัดได้ ${r.measured != null ? measText(r) : '-'} · ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}</h3>${await imgs(r)}</div>`;
   $('#print').innerHTML = html; await new Promise(r => setTimeout(r, 300)); print();
   setTimeout(() => urls.forEach(URL.revokeObjectURL), 20000);
 };
@@ -544,7 +557,7 @@ function initViewer() {
         ray.params.Points.threshold = size * .01;
         if (!vState.pin) {
           const h = ray.intersectObjects(pins.children)[0];
-          if (h) { const r = h.object.userData.rec; toast(`${r.label} — ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}${r.measured != null ? ' · วัดได้ ' + fmtU(r.measured) + ' ' + U() : ''}`, 3500); }
+          if (h) { const r = h.object.userData.rec; toast(`${r.label} — ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}${r.measured != null ? ' · วัดได้ ' + measText(r) : ''}`, 3500); }
           return;
         }
         const id = $('#pinRec').value; if (!id) { toast('เลือกบันทึกที่จะปักหมุดก่อน'); return; }
