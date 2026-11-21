@@ -220,15 +220,30 @@ async function shoot() {
 $('#shutter').addEventListener('click', shoot);
 
 // กล้องระบบ (เต็มความละเอียด) — ตรวจความคม + ซูมจาก EXIF ภายหลัง
+/* โหลดรูปให้ได้ทุกกรณี (Safari บางรุ่นไม่รองรับตัวเลือกของ createImageBitmap / รูปใหญ่มาก) */
+async function loadBitmap(blob) {
+  try { return await createImageBitmap(blob, { imageOrientation: 'from-image' }); } catch {}
+  try { return await createImageBitmap(blob); } catch {}
+  const u = URL.createObjectURL(blob);
+  try { const im = new Image(); im.src = u; await im.decode(); return im; }
+  finally { setTimeout(() => URL.revokeObjectURL(u), 3000); }
+}
 async function fromFile(e, src) {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  const bmp = await createImageBitmap(f, { imageOrientation: 'from-image' });
-  const r = cam.roi, w = bmp.width * r.w, h = bmp.height * r.h;
-  const score = sharp(bmp, bmp.width * r.cx - w / 2, bmp.height * r.cy - h / 2, w, h);
-  const f35 = await exifF35(f);
-  const zoom = f35 ? +(f35 / MAIN_FOCAL_35).toFixed(2) : null;
-  await takeShot(cam.step, { blob: f, w: bmp.width, h: bmp.height, zoom, f35, zoomMode: src === 'album' ? 'album' : 'system-camera', sharp: Math.round(score), sharpMin: S.sharpMin,
-    at: src === 'album' && f.lastModified ? f.lastModified : Date.now(), src });
+  toast('กำลังประมวลผลรูป…', 8000);
+  try {
+    const bmp = await loadBitmap(f);
+    const bw = bmp.width || bmp.naturalWidth, bh = bmp.height || bmp.naturalHeight;
+    const r = cam.roi, w = bw * r.w, h = bh * r.h;
+    const score = sharp(bmp, bw * r.cx - w / 2, bh * r.cy - h / 2, w, h);
+    const f35 = await exifF35(f);
+    const zoom = f35 ? +(f35 / MAIN_FOCAL_35).toFixed(2) : null;
+    $('#toast').hidden = true;
+    await takeShot(cam.step, { blob: f, w: bw, h: bh, zoom, f35, zoomMode: src === 'album' ? 'album' : 'system-camera', sharp: Math.round(score), sharpMin: S.sharpMin,
+      at: src === 'album' && f.lastModified ? f.lastModified : Date.now(), src });
+  } catch (err) {
+    console.error(err); toast('อ่านรูปไม่ได้: ' + (err.message || err.name || 'ไม่ทราบสาเหตุ') + ' — ลองรูปอื่น', 6000);
+  }
 }
 $('#sysFile').addEventListener('change', e => fromFile(e, 'system'));
 $('#albFile').addEventListener('change', e => fromFile(e, 'album'));
@@ -367,10 +382,10 @@ $('#rDelete').onclick = async () => {
 async function stamped(rec, step) {
   const s = rec.shots[step]; if (!s) return null;
   if (!S.stamp) return s.blob;
-  const bmp = await createImageBitmap(s.blob, { imageOrientation: 'from-image' });
-  const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
+  const bmp = await loadBitmap(s.blob);
+  const cv = document.createElement('canvas'); const bw = bmp.width || bmp.naturalWidth, bh = bmp.height || bmp.naturalHeight; cv.width = bw; cv.height = bh;
   const x = cv.getContext('2d'); x.drawImage(bmp, 0, 0);
-  const fs = Math.round(bmp.width / 34), pad = fs * .6;
+  const fs = Math.round(bw / 34), pad = fs * .6;
   const lines = [`${rec.job || ''} · ${rec.label}`,
     `${KINDS[rec.kind].label} · เกณฑ์ ${ruleText(rec)} มม.${rec.measured != null ? ' · วัดได้ ' + rec.measured + ' มม. (' + { pass: 'ผ่าน', fail: 'ไม่ผ่าน' }[judge(rec)] + ')' : ''}`,
     `${fmtTime(s.at)} · ${step === 'wide' ? '1×' : 'ซูม ' + (s.zoom ?? '?') + '×'} · คม ${s.sharp}${rec.gps ? ` · ${rec.gps.lat.toFixed(5)},${rec.gps.lng.toFixed(5)}` : ''}`];
