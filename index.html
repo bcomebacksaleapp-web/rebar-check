@@ -109,9 +109,9 @@
       <input id="iLabel" required placeholder="เช่น ผนัง W3 ชั้น 2 แกน A-3">
     </label>
     <div class="grid3">
-      <label>ค่าออกแบบ (มม.)<input id="iSpec" type="number" inputmode="decimal" step="any" required></label>
+      <label>ค่าออกแบบ (<span class="u">ม.</span>)<input id="iSpec" type="number" inputmode="decimal" step="any" required></label>
       <label>เกณฑ์<select id="iRule"><option value="tol">± ค่าเผื่อ</option><option value="min">≥ ขั้นต่ำ</option></select></label>
-      <label>ค่าเผื่อ (มม.)<input id="iTol" type="number" inputmode="decimal" step="any" value="5"></label>
+      <label>ค่าเผื่อ (<span class="u">ม.</span>)<input id="iTol" type="number" inputmode="decimal" step="any"></label>
     </div>
     <div class="btns">
       <button type="button" class="ghost" id="iCancel">ยกเลิก</button>
@@ -124,10 +124,12 @@
 <section id="cam" hidden>
   <div class="cam-top">
     <button id="camClose" class="icon dark" aria-label="ปิด">✕</button>
+    <button id="camBack" class="back" hidden>‹ ย้อนกลับ</button>
     <div><div id="camStep" class="step"></div><div id="camHint" class="hint"></div></div>
     <select id="lens" aria-label="เลนส์"></select>
   </div>
   <div class="stage" id="stage">
+    <div id="prevCard" hidden><img id="prevImg" alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="><div><b>ภาพเดิม</b><br><small id="prevTxt"></small></div><button id="prevUse" type="button">ใช้ภาพเดิม ›</button></div>
     <div class="frame" id="frame">
       <video id="video" playsinline muted autoplay></video>
       <div class="grid"></div>
@@ -165,7 +167,7 @@
       <figure><img id="imgTape" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""><figcaption>ซูม ตลับเมตร+ป้าย <button type="button" class="link" data-retake="tape">ถ่ายใหม่</button></figcaption><p id="qcTape" class="qc"></p></figure>
     </div>
     <div class="grid2">
-      <label>ค่าที่วัดได้ (มม.)<input id="rMeasured" type="number" inputmode="decimal" step="any"></label>
+      <label>ค่าที่วัดได้ (<span class="u">ม.</span>)<input id="rMeasured" type="number" inputmode="decimal" step="any"></label>
       <div class="result"><span>ผล</span><b id="rResult">—</b></div>
     </div>
     <label>หมายเหตุ<textarea id="rNote" rows="2"></textarea></label>
@@ -183,6 +185,7 @@
     <h2>ตั้งค่า</h2>
     <label>ชื่องาน / โครงการ<input id="sJob"></label>
     <label>ผู้ตรวจ<input id="sInspector"></label>
+    <label>หน่วยความยาว<select id="sUnit"><option value="m">เมตร (ม.)</option><option value="mm">มิลลิเมตร (มม.)</option></select></label>
     <label>เกณฑ์ความคมโฟกัส (ค่าสูง = เข้มงวด) <output id="sSharpOut"></output>
       <input id="sSharp" type="range" min="10" max="400" step="5">
     </label>

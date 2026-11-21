@@ -19,7 +19,7 @@ const TAPE_ZOOMS = [2.6, 2.7, 2.8, 2.9];
 const MAIN_FOCAL_35 = 24;          // iPhone กล้องหลัก ≈ 24 mm (35mm-equiv) ใช้ตรวจซูมจาก EXIF
 
 /* ---------- settings ---------- */
-const S = { job: '', inspector: '', sharpMin: 60, gate: true, stamp: true };
+const S = { unit: 'm', job: '', inspector: '', sharpMin: 60, gate: true, stamp: true };
 try { Object.assign(S, JSON.parse(localStorage.getItem('rc-settings') || '{}')); } catch {}
 const saveS = () => { try { localStorage.setItem('rc-settings', JSON.stringify(S)); } catch {} };
 
@@ -49,7 +49,13 @@ function judge(r) {
   const d = r.measured - r.spec;
   return (r.rule === 'min' ? d >= 0 : Math.abs(d) <= r.tol) ? 'pass' : 'fail';
 }
-const ruleText = r => r.rule === 'min' ? `≥ ${r.spec}` : `${r.spec} ± ${r.tol}`;
+// เก็บค่าเป็น มม. ภายใน แสดง/กรอกเป็น ม. (ตั้งค่าเปลี่ยนได้)
+const unitM = () => S.unit !== 'mm';
+const U = () => unitM() ? 'ม.' : 'มม.';
+const toU = mm => (mm == null || mm === '') ? mm : (unitM() ? +(mm / 1000).toFixed(4) : mm);
+const fromU = v => (v === '' || v == null) ? null : (unitM() ? +(+v * 1000).toFixed(2) : +v);
+const ruleText = r => `${r.rule === 'min' ? '≥ ' + toU(r.spec) : toU(r.spec) + ' ± ' + toU(r.tol)} ${U()}`;
+function setUnitLabels() { $$('.u').forEach(e => e.textContent = U()); }
 let urlPool = [];
 const mkUrl = b => { const u = URL.createObjectURL(b); urlPool.push(u); return u; };
 
@@ -248,12 +254,23 @@ async function fromFile(e, src) {
 $('#sysFile').addEventListener('change', e => fromFile(e, 'system'));
 $('#albFile').addEventListener('change', e => fromFile(e, 'album'));
 
-async function takeShot(step, shot) {
-  flow.rec.shots[step] = shot;
+function advance() {
   flow.i++;
   if (flow.i < flow.steps.length) enterStep(flow.steps[flow.i]);
   else { closeCamera(); openReview(flow.rec, flow.isNew); }
 }
+async function takeShot(step, shot) { flow.rec.shots[step] = shot; advance(); }   // ถ่าย/อัปรูปใหม่ → แทนที่รูปเดิม
+let prevUrl = null;
+function updatePrev() {   // รูปที่เคยถ่ายไว้ของขั้นนี้ (แคชใน rec.shots) — ไม่อัปใหม่ก็ใช้ของเดิมได้
+  if (prevUrl) { URL.revokeObjectURL(prevUrl); prevUrl = null; }
+  const s = flow && flow.rec.shots[cam.step];
+  $('#prevCard').hidden = !s;
+  if (s) { prevUrl = URL.createObjectURL(s.blob); $('#prevImg').src = prevUrl;
+    $('#prevTxt').textContent = `${s.zoom != null ? s.zoom + '×' : ''} · คม ${s.sharp}${s.src === 'album' ? ' · อัลบั้ม' : ''}`; }
+  $('#camBack').hidden = !(flow && flow.i > 0);
+}
+$('#prevUse').addEventListener('click', () => advance());
+$('#camBack').addEventListener('click', () => { if (flow && flow.i > 0) { flow.i--; enterStep(flow.steps[flow.i]); } });
 async function enterStep(step) {
   cam.step = step; const st = STEPS[step];
   $('#camStep').textContent = st.title; $('#camHint').textContent = st.hint;
@@ -261,7 +278,7 @@ async function enterStep(step) {
   placeRoi();
   $('#zoombar').innerHTML = st.zooms.length > 1 ? st.zooms.map(z => `<button data-z="${z}">${z.toFixed(1)}×</button>`).join('') : `<button data-z="1" disabled>1× (ล็อก)</button>`;
   $$('#zoombar button').forEach(b => b.onclick = () => setZoom(+b.dataset.z));
-  $('#shutter').classList.remove('blur');
+  $('#shutter').classList.remove('blur'); updatePrev();
   if (cam.on) await setZoom(step === 'tape' ? 2.8 : 1);
   else cam.zoom = step === 'tape' ? 2.8 : 1;
 }
@@ -273,7 +290,7 @@ async function openCamera(rec, steps, isNew) {
     toast('เปิดกล้องไม่ได้ (' + (err.name || err) + ') — ต้องเปิดผ่าน https และอนุญาตกล้อง ใช้ปุ่ม “กล้องระบบ” แทนได้', 5000);
   }
 }
-function closeCamera() { stopCamera(); $('#cam').hidden = true; }
+function closeCamera() { stopCamera(); $('#cam').hidden = true; if (prevUrl) { URL.revokeObjectURL(prevUrl); prevUrl = null; } }
 $('#camClose').addEventListener('click', () => { closeCamera(); if (flow && !flow.isNew) openReview(flow.rec, false); flow = null; });
 
 function fakeStream() {  // โหมดทดสอบบนคอมพิวเตอร์ ?fake
@@ -300,7 +317,7 @@ async function renderList() {
   $('#empty').hidden = recs.length > 0;
   $('#recs').innerHTML = recs.map(r => {
     const j = judge(r), img = r.shots.tape || r.shots.wide;
-    return `<li data-id="${r.id}"><img alt="" src="${img ? mkUrl(img.blob) : ''}"><div class="main"><div class="t">${esc(r.label)}</div>${r.element ? `<div class="m">☑ ${esc(ELEMENTS[r.element]?.label)} · ${esc(ELEMENTS[r.element]?.items.find(i => i.id === r.checkId)?.t || '')}</div>` : ''}<div class="m">${esc(KINDS[r.kind].label)} · ${ruleText(r)} มม.</div><div class="m">${r.measured != null && r.measured !== '' ? 'วัดได้ ' + r.measured + ' มม. · ' : ''}${fmtTime(r.createdAt)}</div></div>
+    return `<li data-id="${r.id}"><img alt="" src="${img ? mkUrl(img.blob) : ''}"><div class="main"><div class="t">${esc(r.label)}</div>${r.element ? `<div class="m">☑ ${esc(ELEMENTS[r.element]?.label)} · ${esc(ELEMENTS[r.element]?.items.find(i => i.id === r.checkId)?.t || '')}</div>` : ''}<div class="m">${esc(KINDS[r.kind].label)} · ${ruleText(r)}</div><div class="m">${r.measured != null && r.measured !== '' ? 'วัดได้ ' + toU(r.measured) + ' ' + U() + ' · ' : ''}${fmtTime(r.createdAt)}</div></div>
       <span class="chip ${blur(r) && j === 'pending' ? 'blur' : j}">${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: blur(r) ? 'ไม่คม' : 'รอวัด' }[j]}</span></li>`;
   }).join('');
   $$('#recs li').forEach(li => li.onclick = async () => openReview((await dbAll('records')).find(r => r.id === li.dataset.id), false));
@@ -308,7 +325,7 @@ async function renderList() {
 
 /* ----- บันทึกใหม่ ----- */
 $('#iKind').innerHTML = Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
-const applyKind = () => { const k = KINDS[$('#iKind').value]; $('#iRule').value = k.rule; $('#iTol').value = k.tol; };
+const applyKind = () => { const k = KINDS[$('#iKind').value]; $('#iRule').value = k.rule; $('#iTol').value = toU(k.tol); };
 $('#iKind').addEventListener('change', applyKind); applyKind();
 $('#iElem').insertAdjacentHTML('beforeend', Object.entries(ELEMENTS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join(''));
 $('#iElem').addEventListener('change', () => {
@@ -325,7 +342,7 @@ $('#btnNew').onclick = () => { $('#dlgInfo').showModal(); };
 $('#iCancel').onclick = () => $('#dlgInfo').close();
 $('#fInfo').addEventListener('submit', e => {
   const rec = { id: uid(), createdAt: Date.now(), job: S.job, inspector: S.inspector, kind: $('#iKind').value, label: $('#iLabel').value.trim(),
-    spec: +$('#iSpec').value, rule: $('#iRule').value, tol: +$('#iTol').value || 0, measured: null, note: '', shots: {}, gps: null,
+    spec: fromU($('#iSpec').value), rule: $('#iRule').value, tol: fromU($('#iTol').value) || 0, measured: null, note: '', shots: {}, gps: null,
     element: $('#iElem').value || null, checkId: $('#iElem').value ? $('#iItem').value : null,
     model: { ref: null, pos: null }, device: navigator.userAgent };
   navigator.geolocation?.getCurrentPosition(p => { rec.gps = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }; }, () => {}, { timeout: 5000, maximumAge: 60000 });
@@ -353,23 +370,23 @@ function qcText(step, s) {
 function openReview(rec, isNew) {
   cur = rec; curNew = isNew; urlPool.forEach(URL.revokeObjectURL); urlPool = [];
   $('#rvTitle').textContent = rec.label;
-  $('#rvMeta').textContent = `${KINDS[rec.kind].label} · เกณฑ์ ${ruleText(rec)} มม. · ${fmtTime(rec.createdAt)}`;
+  $('#rvMeta').textContent = `${KINDS[rec.kind].label} · เกณฑ์ ${ruleText(rec)} · ${fmtTime(rec.createdAt)}`;
   for (const [step, id] of [['wide', 'Wide'], ['tape', 'Tape']]) {
     const s = rec.shots[step]; $('#img' + id).src = s ? mkUrl(s.blob) : $('#img' + id).src;
     const [t, c] = qcText(step, s); const q = $('#qc' + id); q.textContent = t; q.className = 'qc ' + c;
   }
-  $('#rMeasured').value = rec.measured ?? ''; $('#rNote').value = rec.note || '';
+  $('#rMeasured').value = toU(rec.measured) ?? ''; $('#rNote').value = rec.note || '';
   $('#rDelete').hidden = isNew; $('#rShare').hidden = false; updResult();
   if (!$('#dlgReview').open) $('#dlgReview').showModal();
 }
 function updResult() {
-  const m = $('#rMeasured').value; const r = { ...cur, measured: m === '' ? null : +m }; const j = judge(r);
+  const m = $('#rMeasured').value; const r = { ...cur, measured: fromU(m) }; const j = judge(r);
   const b = $('#rResult'); b.textContent = { pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: '—' }[j]; b.className = j;
 }
 $('#rMeasured').addEventListener('input', updResult);
 $$('[data-retake]').forEach(b => b.onclick = () => { $('#dlgReview').close(); openCamera(cur, [b.dataset.retake], curNew); });
 $('#fReview').addEventListener('submit', async () => {
-  const m = $('#rMeasured').value; cur.measured = m === '' ? null : +m; cur.note = $('#rNote').value;
+  const m = $('#rMeasured').value; cur.measured = fromU(m); cur.note = $('#rNote').value;
   await dbPut('records', cur); toast('บันทึกแล้ว'); renderList();
 });
 $('#dlgReview').addEventListener('cancel', () => { if (curNew) { /* ยังไม่บันทึก: ถือว่ายกเลิก */ } });
@@ -387,7 +404,7 @@ async function stamped(rec, step) {
   const x = cv.getContext('2d'); x.drawImage(bmp, 0, 0);
   const fs = Math.round(bw / 34), pad = fs * .6;
   const lines = [`${rec.job || ''} · ${rec.label}`,
-    `${KINDS[rec.kind].label} · เกณฑ์ ${ruleText(rec)} มม.${rec.measured != null ? ' · วัดได้ ' + rec.measured + ' มม. (' + { pass: 'ผ่าน', fail: 'ไม่ผ่าน' }[judge(rec)] + ')' : ''}`,
+    `${KINDS[rec.kind].label} · เกณฑ์ ${ruleText(rec)}${rec.measured != null ? ' · วัดได้ ' + toU(rec.measured) + ' ' + U() + ' (' + { pass: 'ผ่าน', fail: 'ไม่ผ่าน' }[judge(rec)] + ')' : ''}`,
     `${fmtTime(s.at)} · ${step === 'wide' ? '1×' : 'ซูม ' + (s.zoom ?? '?') + '×'} · คม ${s.sharp}${rec.gps ? ` · ${rec.gps.lat.toFixed(5)},${rec.gps.lng.toFixed(5)}` : ''}`];
   const h = lines.length * fs * 1.3 + pad * 2;
   x.fillStyle = 'rgba(0,0,0,.65)'; x.fillRect(0, cv.height - h, cv.width, h);
@@ -399,7 +416,7 @@ function download(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 $('#rShare').onclick = async () => {
-  const m = $('#rMeasured').value; cur.measured = m === '' ? null : +m;
+  const m = $('#rMeasured').value; cur.measured = fromU(m);
   const safe = cur.label.replace(/[^\w฀-๿-]+/g, '_');
   const files = [];
   for (const st of ['wide', 'tape']) { const b = await stamped(cur, st); if (b) files.push(new File([b], `${safe}_${st}.jpg`, { type: 'image/jpeg' })); }
@@ -416,7 +433,7 @@ $('#btnReport').onclick = async () => {
   const urls = [];
   const imgs = async r => { let h = ''; for (const st of ['wide', 'tape']) { const b = await stamped(r, st); if (b) { const u = URL.createObjectURL(b); urls.push(u); h += `<img src="${u}" alt="">`; } } return h; };
   let html = `<h2>${esc(S.job || 'รายงานตรวจ')} — ผู้ตรวจ ${esc(S.inspector)}</h2>`;
-  for (const r of recs) html += `<div class="pr"><h3>${esc(r.label)} · ${esc(KINDS[r.kind].label)} · เกณฑ์ ${ruleText(r)} มม. · วัดได้ ${r.measured ?? '-'} · ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}</h3>${await imgs(r)}</div>`;
+  for (const r of recs) html += `<div class="pr"><h3>${esc(r.label)} · ${esc(KINDS[r.kind].label)} · เกณฑ์ ${ruleText(r)} · วัดได้ ${r.measured != null ? toU(r.measured) + ' ' + U() : '-'} · ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}</h3>${await imgs(r)}</div>`;
   $('#print').innerHTML = html; await new Promise(r => setTimeout(r, 300)); print();
   setTimeout(() => urls.forEach(URL.revokeObjectURL), 20000);
 };
@@ -424,12 +441,12 @@ $('#btnReport').onclick = async () => {
 /* ----- ตั้งค่า ----- */
 $('#btnSettings').onclick = () => {
   $('#sJob').value = S.job; $('#sInspector').value = S.inspector; $('#sSharp').value = S.sharpMin; $('#sSharpOut').textContent = S.sharpMin;
-  $('#sGate').checked = S.gate; $('#sStamp').checked = S.stamp; $('#dlgSettings').showModal();
+  $('#sUnit').value = S.unit; $('#sGate').checked = S.gate; $('#sStamp').checked = S.stamp; $('#dlgSettings').showModal();
 };
 $('#sSharp').oninput = e => $('#sSharpOut').textContent = e.target.value;
 $('#fSet').addEventListener('submit', () => {
-  Object.assign(S, { job: $('#sJob').value.trim(), inspector: $('#sInspector').value.trim(), sharpMin: +$('#sSharp').value, gate: $('#sGate').checked, stamp: $('#sStamp').checked });
-  saveS(); renderList();
+  Object.assign(S, { unit: $('#sUnit').value, job: $('#sJob').value.trim(), inspector: $('#sInspector').value.trim(), sharpMin: +$('#sSharp').value, gate: $('#sGate').checked, stamp: $('#sStamp').checked });
+  saveS(); setUnitLabels(); applyKind(); renderList();
 });
 
 /* ================= แท็บ + โมเดล 3D ================= */
@@ -523,7 +540,7 @@ function initViewer() {
         ray.params.Points.threshold = size * .01;
         if (!vState.pin) {
           const h = ray.intersectObjects(pins.children)[0];
-          if (h) { const r = h.object.userData.rec; toast(`${r.label} — ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}${r.measured != null ? ' · วัดได้ ' + r.measured + ' มม.' : ''}`, 3500); }
+          if (h) { const r = h.object.userData.rec; toast(`${r.label} — ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}${r.measured != null ? ' · วัดได้ ' + toU(r.measured) + ' ' + U() : ''}`, 3500); }
           return;
         }
         const id = $('#pinRec').value; if (!id) { toast('เลือกบันทึกที่จะปักหมุดก่อน'); return; }
@@ -570,6 +587,7 @@ $('#scanFile').addEventListener('change', async e => {
 });
 
 /* ---------- เริ่มต้น ---------- */
+setUnitLabels(); applyKind();
 await renderList();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 navigator.storage?.persist?.();   // ขอให้ iOS ไม่ล้างภาพที่เก็บไว้
