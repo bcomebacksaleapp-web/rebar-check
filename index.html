@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#14181f">
+<title>ตรวจเหล็ก ความหนา</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="ตรวจเหล็ก">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{"imports":{
+ "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+ "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="warn" hidden></div>
+
+<main>
+  <!-- รายการบันทึก -->
+  <section id="v-list" class="view">
+    <header class="top">
+      <div>
+        <h1>ตรวจเหล็ก · ความหนา</h1>
+        <p id="jobName" class="sub"></p>
+      </div>
+      <button id="btnSettings" class="icon" aria-label="ตั้งค่า">⚙</button>
+    </header>
+    <div id="summary" class="summary"></div>
+    <ul id="recs" class="recs"></ul>
+    <p id="empty" class="empty" hidden>ยังไม่มีบันทึก<br>กด “＋ บันทึกใหม่” เพื่อเริ่มตรวจ</p>
+    <div class="row-actions">
+      <button id="btnExport" class="ghost">ส่งออก JSON</button>
+      <button id="btnReport" class="ghost">พิมพ์รายงาน</button>
+    </div>
+    <button id="btnNew" class="fab">＋ บันทึกใหม่</button>
+  </section>
+
+  <!-- โมเดล 3D -->
+  <section id="v-model" class="view" hidden>
+    <header class="top"><div><h1>โมเดล 3D</h1><p class="sub">แนบ SketchUp แล้วเทียบกับหน้างาน</p></div></header>
+    <div class="vwrap">
+      <div id="viewer" class="viewer"><p class="empty">ยังไม่มีโมเดล</p></div>
+      <div class="tools" id="vtools">
+        <button data-t="wire" aria-pressed="false">เส้น</button>
+        <button data-t="xray" aria-pressed="false">X-ray</button>
+        <button data-t="rot" aria-pressed="false">หมุนอัตโนมัติ</button>
+        <button data-t="eye">มุมสายตา</button>
+        <button data-t="pan" aria-pressed="false">เลื่อน</button>
+        <button data-t="reset">รีเซ็ต</button>
+        <button data-t="scan" aria-pressed="true">LiDAR</button>
+      </div>
+      <div id="mLoad" hidden><span id="mLoadTxt">Loading 0%</span><i><b id="mLoadBar"></b></i></div>
+    </div>
+    <div class="layers">
+      <label class="file-btn">แบบ 3D จาก SketchUp<br>(.glb / .gltf / .skp)<input id="modelFile" type="file" accept=".glb,.gltf,.skp"></label>
+      <label class="file-btn alt">สแกน LiDAR หน้างาน<br>(.glb / .ply)<input id="scanFile" type="file" accept=".glb,.gltf,.ply"></label>
+    </div>
+    <details class="align"><summary>จัดตำแหน่งสแกนให้ซ้อนแบบ</summary>
+      <label>หมุน Y <output id="oRy">0</output>°<input id="aRy" type="range" min="-180" max="180" step="1" value="0"></label>
+      <label>เลื่อน X (ม.) <output id="oX">0</output><input id="aX" type="range" min="-30" max="30" step=".05" value="0"></label>
+      <label>เลื่อน Y (ม.) <output id="oY">0</output><input id="aY" type="range" min="-10" max="10" step=".05" value="0"></label>
+      <label>เลื่อน Z (ม.) <output id="oZ">0</output><input id="aZ" type="range" min="-30" max="30" step=".05" value="0"></label>
+      <label>สเกล <output id="oS">1</output><input id="aS" type="range" min=".5" max="2" step=".01" value="1"></label>
+      <label>ความทึบสแกน <output id="oOp">70</output>%<input id="aOp" type="range" min="5" max="100" step="5" value="70"></label>
+    </details>
+    <div class="pinbar">
+      <select id="pinRec"><option value="">— เลือกบันทึกที่จะปักหมุด —</option></select>
+      <button id="pinBtn" class="ghost" aria-pressed="false">📍 ปักหมุด</button>
+    </div>
+    <p id="modelNote" class="note"></p>
+    <div class="road">
+      <h2>แผนต่อยอด</h2>
+      <ol>
+        <li><b>ตอนนี้</b> แสดง .glb/.gltf หมุน/ซูมบนเว็บ · เก็บไฟล์ .skp ไว้ในเครื่อง</li>
+        <li><b>ถัดไป</b> แปลง .skp → .glb อัตโนมัติฝั่งเซิร์ฟเวอร์ แล้วปักหมุดบันทึกตรวจลงบนโมเดล</li>
+        <li><b>AR</b> ส่ง .usdz ให้ AR Quick Look (เปิดใน Safari ได้เลย) วางโมเดลเทียบหน้างาน</li>
+        <li><b>LiDAR</b> สแกนด้วยแอปเช่น Polycam / Scaniverse แล้วนำ .glb/.ply เข้ามาซ้อนกับแบบได้เลย · สแกนสดในแอปนี้ต้องทำเป็นแอปเนทีฟ (ARKit) เพราะ Safari เข้าถึง LiDAR ไม่ได้</li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button data-v="list" class="on">บันทึก</button>
+  <button data-v="model">โมเดล 3D</button>
+</nav>
+
+<!-- ข้อมูลบันทึกใหม่ -->
+<dialog id="dlgInfo" class="sheet">
+  <form method="dialog" id="fInfo">
+    <h2>บันทึกใหม่</h2>
+    <label>ชนิดโครงสร้าง (เช็กลิสต์ก่อนเทคอนกรีต)
+      <select id="iElem"><option value="">— ไม่ระบุ (บันทึกอิสระ) —</option></select>
+    </label>
+    <label id="lItem" hidden>รายการที่ต้องถ่าย
+      <select id="iItem"></select>
+    </label>
+    <label>ประเภทงานตรวจ
+      <select id="iKind"></select>
+    </label>
+    <label>ตำแหน่ง / รหัสจุด
+      <input id="iLabel" required placeholder="เช่น ผนัง W3 ชั้น 2 แกน A-3">
+    </label>
+    <div class="grid3">
+      <label>ค่าออกแบบ (มม.)<input id="iSpec" type="number" inputmode="decimal" step="any" required></label>
+      <label>เกณฑ์<select id="iRule"><option value="tol">± ค่าเผื่อ</option><option value="min">≥ ขั้นต่ำ</option></select></label>
+      <label>ค่าเผื่อ (มม.)<input id="iTol" type="number" inputmode="decimal" step="any" value="5"></label>
+    </div>
+    <div class="btns">
+      <button type="button" class="ghost" id="iCancel">ยกเลิก</button>
+      <button type="submit" class="primary">ถ่ายภาพ →</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- กล้อง -->
+<section id="cam" hidden>
+  <div class="cam-top">
+    <button id="camClose" class="icon dark" aria-label="ปิด">✕</button>
+    <div><div id="camStep" class="step"></div><div id="camHint" class="hint"></div></div>
+    <select id="lens" aria-label="เลนส์"></select>
+  </div>
+  <div class="stage" id="stage">
+    <div class="frame" id="frame">
+      <video id="video" playsinline muted autoplay></video>
+      <div class="grid"></div>
+      <div id="roi" class="roi"><span>โฟกัส</span></div>
+    </div>
+  </div>
+  <div class="meter">
+    <div class="bar"><i id="sharpBar"></i><b id="sharpMark"></b></div>
+    <span id="sharpTxt">—</span>
+  </div>
+  <div id="zoombar" class="zoombar"></div>
+  <div class="shutter-row">
+    <label class="sys" title="เปิดกล้องของ iOS เต็มความละเอียด 48MP">
+      <input id="sysFile" type="file" accept="image/*" capture="environment" hidden>
+      <span>กล้องระบบ<br><small>เต็มความละเอียด</small></span>
+    </label>
+    <button id="shutter" aria-label="ถ่าย"></button>
+    <div id="zoomMode" class="zmode"></div>
+  </div>
+</section>
+
+<!-- ตรวจทาน / รายละเอียด -->
+<dialog id="dlgReview" class="sheet tall">
+  <form method="dialog" id="fReview">
+    <h2 id="rvTitle"></h2>
+    <p id="rvMeta" class="sub"></p>
+    <div class="shots">
+      <figure><img id="imgWide" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""><figcaption>1× ภาพรวม <button type="button" class="link" data-retake="wide">ถ่ายใหม่</button></figcaption><p id="qcWide" class="qc"></p></figure>
+      <figure><img id="imgTape" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""><figcaption>ซูม ตลับเมตร+ป้าย <button type="button" class="link" data-retake="tape">ถ่ายใหม่</button></figcaption><p id="qcTape" class="qc"></p></figure>
+    </div>
+    <div class="grid2">
+      <label>ค่าที่วัดได้ (มม.)<input id="rMeasured" type="number" inputmode="decimal" step="any"></label>
+      <div class="result"><span>ผล</span><b id="rResult">—</b></div>
+    </div>
+    <label>หมายเหตุ<textarea id="rNote" rows="2"></textarea></label>
+    <div class="btns">
+      <button type="button" class="danger" id="rDelete">ลบ</button>
+      <button type="button" class="ghost" id="rShare">แชร์ภาพ</button>
+      <button type="submit" class="primary" id="rSave">บันทึก</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ตั้งค่า -->
+<dialog id="dlgSettings" class="sheet">
+  <form method="dialog" id="fSet">
+    <h2>ตั้งค่า</h2>
+    <label>ชื่องาน / โครงการ<input id="sJob"></label>
+    <label>ผู้ตรวจ<input id="sInspector"></label>
+    <label>เกณฑ์ความคมโฟกัส (ค่าสูง = เข้มงวด) <output id="sSharpOut"></output>
+      <input id="sSharp" type="range" min="10" max="400" step="5">
+    </label>
+    <p class="note">ค่านี้ขึ้นกับแสงและพื้นผิว — ถ่ายตลับเมตรที่คมแล้วดูตัวเลขบนแถบวัด ตั้งเกณฑ์ให้ต่ำกว่านั้นเล็กน้อย</p>
+    <label class="check"><input id="sGate" type="checkbox"> ล็อกชัตเตอร์เมื่อภาพตลับเมตรไม่คม</label>
+    <label class="check"><input id="sStamp" type="checkbox"> ประทับข้อมูลลงภาพที่แชร์</label>
+    <div class="btns"><button type="submit" class="primary">เสร็จ</button></div>
+  </form>
+</dialog>
+
+<div id="toast" hidden></div>
+<div id="print" hidden></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "ตรวจเหล็ก ความหนา",
+  "short_name": "ตรวจเหล็ก",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f0e8",
+  "theme_color": "#14181f"
+}
