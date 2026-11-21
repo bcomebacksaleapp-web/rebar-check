@@ -140,10 +140,16 @@
   </div>
   <div id="zoombar" class="zoombar"></div>
   <div class="shutter-row">
-    <label class="sys" title="เปิดกล้องของ iOS เต็มความละเอียด 48MP">
-      <input id="sysFile" type="file" accept="image/*" capture="environment" hidden>
-      <span>กล้องระบบ<br><small>เต็มความละเอียด</small></span>
-    </label>
+    <div class="sysbox">
+      <label class="sys" title="เปิดกล้องของ iOS เต็มความละเอียด 48MP">
+        <input id="sysFile" type="file" accept="image/*" capture="environment" hidden>
+        <span>กล้องระบบ<br><small>เต็มความละเอียด</small></span>
+      </label>
+      <label class="sys" title="เลือกรูปจากอัลบั้ม">
+        <input id="albFile" type="file" accept="image/*" hidden>
+        <span>🖼 อัลบั้ม<br><small>เลือกรูปที่มี</small></span>
+      </label>
+    </div>
     <button id="shutter" aria-label="ถ่าย"></button>
     <div id="zoomMode" class="zmode"></div>
   </div>

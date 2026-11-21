@@ -220,15 +220,18 @@ async function shoot() {
 $('#shutter').addEventListener('click', shoot);
 
 // กล้องระบบ (เต็มความละเอียด) — ตรวจความคม + ซูมจาก EXIF ภายหลัง
-$('#sysFile').addEventListener('change', async e => {
+async function fromFile(e, src) {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   const bmp = await createImageBitmap(f, { imageOrientation: 'from-image' });
-  const cx = bmp.width * .5, cy = bmp.height * .5, w = bmp.width * .2, h = bmp.height * .15;
-  const score = sharp(bmp, cx - w / 2, cy - h / 2, w, h);
+  const r = cam.roi, w = bmp.width * r.w, h = bmp.height * r.h;
+  const score = sharp(bmp, bmp.width * r.cx - w / 2, bmp.height * r.cy - h / 2, w, h);
   const f35 = await exifF35(f);
   const zoom = f35 ? +(f35 / MAIN_FOCAL_35).toFixed(2) : null;
-  await takeShot(cam.step, { blob: f, w: bmp.width, h: bmp.height, zoom, f35, zoomMode: 'system-camera', sharp: Math.round(score), sharpMin: S.sharpMin, at: Date.now(), src: 'system' });
-});
+  await takeShot(cam.step, { blob: f, w: bmp.width, h: bmp.height, zoom, f35, zoomMode: src === 'album' ? 'album' : 'system-camera', sharp: Math.round(score), sharpMin: S.sharpMin,
+    at: src === 'album' && f.lastModified ? f.lastModified : Date.now(), src });
+}
+$('#sysFile').addEventListener('change', e => fromFile(e, 'system'));
+$('#albFile').addEventListener('change', e => fromFile(e, 'album'));
 
 async function takeShot(step, shot) {
   flow.rec.shots[step] = shot;
@@ -324,11 +327,12 @@ function qcText(step, s) {
     const th = s.sharpMin ?? S.sharpMin;
     if (s.sharp < th) { out.push(`ไม่คม (${s.sharp} < ${th})`); cls = 'bad'; } else out.push(`คม (${s.sharp})`);
   }
+  if (s.src === 'album') out.push('จากอัลบั้ม');
   if (s.zoom != null) {
     const inRange = step === 'tape' ? s.zoom >= 2.55 && s.zoom <= 2.95 : s.zoom >= .9 && s.zoom <= 1.1;
-    out.push(`ซูม ${s.zoom}×${s.src === 'system' ? ' (EXIF)' : ''}`);
+    out.push(`ซูม ${s.zoom}×${s.src !== 'app' ? ' (EXIF)' : ''}`);
     if (!inRange) { cls = 'bad'; out.push('นอกช่วง'); }
-  } else if (s.src === 'system') { out.push('อ่านซูมจาก EXIF ไม่ได้'); if (cls === 'ok') cls = 'warn'; }
+  } else if (s.src !== 'app') { out.push('อ่านซูมจาก EXIF ไม่ได้'); if (cls === 'ok') cls = 'warn'; }
   return [out.join(' · '), cls];
 }
 function openReview(rec, isNew) {
