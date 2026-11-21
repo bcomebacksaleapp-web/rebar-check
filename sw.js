@@ -1,4 +1,4 @@
-const V = 'rebarcheck-v10';
+const V = 'rebarcheck-v11';
 const SHELL = ['./', './index.html', './style.css', './app.js', './checklists.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(

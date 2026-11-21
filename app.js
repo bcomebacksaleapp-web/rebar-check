@@ -13,6 +13,8 @@ const KINDS = {
   rebar: { label: 'เหล็กเสริม · ระยะห่าง', rule: 'tol', tol: 10 },
   cover: { label: 'ระยะหุ้มเหล็ก (cover)', rule: 'min', tol: 0 },
   wallclear: { label: 'ผนัง · เคลียร์ใน / เคลียร์นอก', rule: 'min', tol: 0, dual: true },
+  slabclear: { label: 'พื้น · เคลียร์ใน / เคลียร์นอก', rule: 'min', tol: 0, dual: true },
+  beamclear: { label: 'คาน · เคลียร์ใน / เคลียร์นอก', rule: 'min', tol: 0, dual: true },
   wall:  { label: 'ความหนาผนัง', rule: 'tol', tol: 10 },
   floor: { label: 'ความหนาพื้น', rule: 'tol', tol: 10 },
 };

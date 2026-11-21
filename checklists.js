@@ -25,6 +25,7 @@ export const ELEMENTS = {
     { id: 'stirrup',t: 'เหล็กปลอก ระยะห่าง (ใกล้จุดรองรับถี่กว่า)', kind: 'rebar', shots: 'both' },
     { id: 'extra',  t: 'เหล็กเสริมพิเศษที่จุดรองรับ/ช่องเปิด', kind: null, shots: 'both' },
     { id: 'cover',  t: 'ระยะหุ้มเหล็ก', kind: 'cover', shots: 'both' },
+    { id: 'clear',  t: 'เคลียร์ใน / เคลียร์นอก (เหล็กถึงผิวแบบ ข้าง/ท้อง/บน)', kind: 'beamclear', shots: 'both' },
     { id: 'clean',  t: 'ท้องแบบสะอาด ค้ำยันมั่นคง', kind: null, shots: 'wide' },
   ]},
   slab: { label: 'พื้น', items: [
@@ -32,6 +33,7 @@ export const ELEMENTS = {
     { id: 'rebar',  t: 'เหล็กล่าง/บน ขนาดและระยะห่าง', kind: 'rebar', shots: 'both' },
     { id: 'thick',  t: 'ความหนาพื้น (ไม้/เหล็กวัดระดับ)', kind: 'floor', shots: 'both' },
     { id: 'chairs', t: 'ขาตั้ง/ลูกปูนรองเหล็กบน-ล่าง ระยะหุ้ม', kind: 'cover', shots: 'both' },
+    { id: 'clear',  t: 'เคลียร์ใน / เคลียร์นอก (เหล็กถึงผิวแบบล่าง/ผิวบน)', kind: 'slabclear', shots: 'both' },
     { id: 'opening',t: 'เหล็กเสริมรอบช่องเปิด/มุม', kind: null, shots: 'both' },
     { id: 'mep',    t: 'ท่อ/สายไฟฝัง ไม่ตัดหรือรบกวนเหล็ก', kind: null, shots: 'wide' },
     { id: 'clean',  t: 'ผิวแบบสะอาด ไม่มีเศษ/น้ำขัง', kind: null, shots: 'wide' },
