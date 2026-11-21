@@ -108,8 +108,9 @@
     <label>ตำแหน่ง / รหัสจุด
       <input id="iLabel" required placeholder="เช่น ผนัง W3 ชั้น 2 แกน A-3">
     </label>
+    <label id="lSpec2" hidden>ค่าออกแบบ เคลียร์นอก (<span class="u">ม.</span>)<input id="iSpec2" type="number" inputmode="decimal" step="0.01"></label>
     <div class="grid3">
-      <label>ค่าออกแบบ (<span class="u">ม.</span>)<input id="iSpec" type="number" inputmode="decimal" step="any" required></label>
+      <label><span id="tSpec">ค่าออกแบบ</span> (<span class="u">ม.</span>)<input id="iSpec" type="number" inputmode="decimal" step="any" required></label>
       <label>เกณฑ์<select id="iRule"><option value="tol">± ค่าเผื่อ</option><option value="min">≥ ขั้นต่ำ</option></select></label>
       <label>ค่าเผื่อ (<span class="u">ม.</span>)<input id="iTol" type="number" inputmode="decimal" step="any"></label>
     </div>

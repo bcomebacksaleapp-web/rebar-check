@@ -13,9 +13,9 @@ const KINDS = {
   rebar: { label: 'เหล็กเสริม · ระยะห่าง', rule: 'tol', tol: 10 },
   cover: { label: 'ระยะหุ้มเหล็ก (cover)', rule: 'min', tol: 0 },
   dowel: { label: 'Dowel หัวเสาเข็ม · ความยาวฝังในฐานราก', rule: 'min', tol: 0 },
-  wallclear: { label: 'ผนัง · เคลียร์ใน / เคลียร์นอก', rule: 'min', tol: 0, dual: true },
-  slabclear: { label: 'พื้น · เคลียร์ใน / เคลียร์นอก', rule: 'min', tol: 0, dual: true },
-  beamclear: { label: 'คาน · เคลียร์ใน / เคลียร์นอก', rule: 'min', tol: 0, dual: true },
+  wallclear: { label: 'ผนัง · เคลียร์ใน / เคลียร์นอก', rule: 'tol', tol: 10, dual: true },
+  slabclear: { label: 'พื้น · เคลียร์ใน / เคลียร์นอก', rule: 'tol', tol: 10, dual: true },
+  beamclear: { label: 'คาน · เคลียร์ใน / เคลียร์นอก', rule: 'tol', tol: 10, dual: true },
   wall:  { label: 'ความหนาผนัง', rule: 'tol', tol: 10 },
   floor: { label: 'ความหนาพื้น', rule: 'tol', tol: 10 },
 };
@@ -49,6 +49,11 @@ function toast(msg, ms = 2600) {
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const fmtTime = ts => new Date(ts).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
 function judge(r) {
+  if (KINDS[r.kind] && KINDS[r.kind].dual) {   // เคลียร์ใน/นอก: ทั้งสองค่าต้องอยู่ในเกณฑ์ของตัวเอง
+    if (r.clearIn == null || r.clearOut == null) return 'pending';
+    const ok = (m, sp) => r.rule === 'min' ? m >= sp : Math.abs(m - sp) <= r.tol;
+    return ok(r.clearIn, r.spec) && ok(r.clearOut, r.spec2) ? 'pass' : 'fail';
+  }
   if (r.measured == null || r.measured === '') return 'pending';
   const d = r.measured - r.spec;
   return (r.rule === 'min' ? d >= 0 : Math.abs(d) <= r.tol) ? 'pass' : 'fail';
@@ -59,20 +64,23 @@ const U = () => unitM() ? 'ม.' : 'มม.';
 const toU = mm => (mm == null || mm === '') ? mm : (unitM() ? +(mm / 1000).toFixed(4) : mm);
 const fmtU = mm => (mm == null || mm === '') ? '' : (unitM() ? (mm / 1000).toFixed(2) : String(mm));   // 0.xx ม.
 const fromU = v => (v === '' || v == null) ? null : (unitM() ? +(+v * 1000).toFixed(2) : +v);
-const ruleText = r => `${r.rule === 'min' ? '≥ ' + fmtU(r.spec) : fmtU(r.spec) + ' ± ' + fmtU(r.tol)} ${U()}`;
+const hasMeas = r => KINDS[r.kind].dual ? (r.clearIn != null || r.clearOut != null) : (r.measured != null && r.measured !== '');
+const ruleText = r => KINDS[r.kind].dual
+  ? `ใน ${r.rule === 'min' ? '≥ ' : ''}${fmtU(r.spec)} · นอก ${r.rule === 'min' ? '≥ ' : ''}${fmtU(r.spec2)}${r.rule === 'min' ? '' : ' ± ' + fmtU(r.tol)} ${U()}`
+  : `${r.rule === 'min' ? '≥ ' + fmtU(r.spec) : fmtU(r.spec) + ' ± ' + fmtU(r.tol)} ${U()}`;
 const measText = r => KINDS[r.kind].dual
   ? `ใน ${fmtU(r.clearIn) || '-'} · นอก ${fmtU(r.clearOut) || '-'} ${U()}`
   : `${fmtU(r.measured)} ${U()}`;
-function applyMeas(r) {   // อ่านค่าที่วัดจากฟอร์ม (ผนังเคลียร์ = 2 ค่า ใช้ค่าที่น้อยกว่าตัดสิน)
+function applyMeas(r) {   // อ่านค่าที่วัดจากฟอร์ม (เคลียร์ใน/นอก = 2 ค่า ต่างมีค่าออกแบบของตัวเอง)
   if (KINDS[r.kind].dual) {
     r.clearIn = fromU($('#rIn').value); r.clearOut = fromU($('#rOut').value);
-    r.measured = (r.clearIn != null && r.clearOut != null) ? Math.min(r.clearIn, r.clearOut) : null;
+    r.measured = null;
   } else r.measured = fromU($('#rMeasured').value);
   return r;
 }
 function setUnitLabels() {
   $$('.u').forEach(e => e.textContent = U());
-  ['#iSpec', '#iTol', '#rMeasured', '#rIn', '#rOut'].forEach(id => { $(id).step = unitM() ? '0.01' : 'any'; $(id).placeholder = unitM() ? '0.00' : ''; });
+  ['#iSpec', '#iSpec2', '#iTol', '#rMeasured', '#rIn', '#rOut'].forEach(id => { $(id).step = unitM() ? '0.01' : 'any'; $(id).placeholder = unitM() ? '0.00' : ''; });
 }
 let urlPool = [];
 const mkUrl = b => { const u = URL.createObjectURL(b); urlPool.push(u); return u; };
@@ -335,7 +343,7 @@ async function renderList() {
   $('#empty').hidden = recs.length > 0;
   $('#recs').innerHTML = recs.map(r => {
     const j = judge(r), img = r.shots.tape || r.shots.wide;
-    return `<li data-id="${r.id}"><img alt="" src="${img ? mkUrl(img.blob) : ''}"><div class="main"><div class="t">${esc(r.label)}</div>${r.element ? `<div class="m">☑ ${esc(ELEMENTS[r.element]?.label)} · ${esc(ELEMENTS[r.element]?.items.find(i => i.id === r.checkId)?.t || '')}</div>` : ''}<div class="m">${esc(KINDS[r.kind].label)} · ${ruleText(r)}</div><div class="m">${r.measured != null && r.measured !== '' ? 'วัดได้ ' + measText(r) + ' · ' : ''}${fmtTime(r.createdAt)}</div></div>
+    return `<li data-id="${r.id}"><img alt="" src="${img ? mkUrl(img.blob) : ''}"><div class="main"><div class="t">${esc(r.label)}</div>${r.element ? `<div class="m">☑ ${esc(ELEMENTS[r.element]?.label)} · ${esc(ELEMENTS[r.element]?.items.find(i => i.id === r.checkId)?.t || '')}</div>` : ''}<div class="m">${esc(KINDS[r.kind].label)} · ${ruleText(r)}</div><div class="m">${hasMeas(r) ? 'วัดได้ ' + measText(r) + ' · ' : ''}${fmtTime(r.createdAt)}</div></div>
       <span class="chip ${blur(r) && j === 'pending' ? 'blur' : j}">${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: blur(r) ? 'ไม่คม' : 'รอวัด' }[j]}</span></li>`;
   }).join('');
   $$('#recs li').forEach(li => li.onclick = async () => openReview((await dbAll('records')).find(r => r.id === li.dataset.id), false));
@@ -343,7 +351,8 @@ async function renderList() {
 
 /* ----- บันทึกใหม่ ----- */
 $('#iKind').innerHTML = Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
-const applyKind = () => { const k = KINDS[$('#iKind').value]; $('#iRule').value = k.rule; $('#iTol').value = fmtU(k.tol); };
+const applyKind = () => { const k = KINDS[$('#iKind').value];
+  $('#lSpec2').hidden = !k.dual; $('#iSpec2').required = !!k.dual; $('#tSpec').textContent = k.dual ? 'ค่าออกแบบ เคลียร์ใน' : 'ค่าออกแบบ'; $('#iRule').value = k.rule; $('#iTol').value = fmtU(k.tol); };
 $('#iKind').addEventListener('change', applyKind); applyKind();
 $('#iElem').insertAdjacentHTML('beforeend', Object.entries(ELEMENTS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join(''));
 $('#iElem').addEventListener('change', () => {
@@ -360,7 +369,7 @@ $('#btnNew').onclick = () => { $('#dlgInfo').showModal(); };
 $('#iCancel').onclick = () => $('#dlgInfo').close();
 $('#fInfo').addEventListener('submit', e => {
   const rec = { id: uid(), createdAt: Date.now(), job: S.job, inspector: S.inspector, kind: $('#iKind').value, label: $('#iLabel').value.trim(),
-    spec: fromU($('#iSpec').value), rule: $('#iRule').value, tol: fromU($('#iTol').value) || 0, measured: null, note: '', shots: {}, gps: null,
+    spec: fromU($('#iSpec').value), spec2: KINDS[$('#iKind').value].dual ? fromU($('#iSpec2').value) : null, rule: $('#iRule').value, tol: fromU($('#iTol').value) || 0, measured: null, note: '', shots: {}, gps: null,
     element: $('#iElem').value || null, checkId: $('#iElem').value ? $('#iItem').value : null,
     model: { ref: null, pos: null }, device: navigator.userAgent };
   navigator.geolocation?.getCurrentPosition(p => { rec.gps = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }; }, () => {}, { timeout: 5000, maximumAge: 60000 });
@@ -424,7 +433,7 @@ async function stamped(rec, step) {
   const x = cv.getContext('2d'); x.drawImage(bmp, 0, 0);
   const fs = Math.round(bw / 34), pad = fs * .6;
   const lines = [`${rec.job || ''} · ${rec.label}`,
-    `${KINDS[rec.kind].label} · เกณฑ์ ${ruleText(rec)}${rec.measured != null ? ' · วัดได้ ' + measText(rec) + ' (' + { pass: 'ผ่าน', fail: 'ไม่ผ่าน' }[judge(rec)] + ')' : ''}`,
+    `${KINDS[rec.kind].label} · เกณฑ์ ${ruleText(rec)}${hasMeas(rec) ? ' · วัดได้ ' + measText(rec) + ' (' + { pass: 'ผ่าน', fail: 'ไม่ผ่าน' }[judge(rec)] + ')' : ''}`,
     `${fmtTime(s.at)} · ${step === 'wide' ? '1×' : 'ซูม ' + (s.zoom ?? '?') + '×'} · คม ${s.sharp}${rec.gps ? ` · ${rec.gps.lat.toFixed(5)},${rec.gps.lng.toFixed(5)}` : ''}`];
   const h = lines.length * fs * 1.3 + pad * 2;
   x.fillStyle = 'rgba(0,0,0,.65)'; x.fillRect(0, cv.height - h, cv.width, h);
@@ -453,7 +462,7 @@ $('#btnReport').onclick = async () => {
   const urls = [];
   const imgs = async r => { let h = ''; for (const st of ['wide', 'tape']) { const b = await stamped(r, st); if (b) { const u = URL.createObjectURL(b); urls.push(u); h += `<img src="${u}" alt="">`; } } return h; };
   let html = `<h2>${esc(S.job || 'รายงานตรวจ')} — ผู้ตรวจ ${esc(S.inspector)}</h2>`;
-  for (const r of recs) html += `<div class="pr"><h3>${esc(r.label)} · ${esc(KINDS[r.kind].label)} · เกณฑ์ ${ruleText(r)} · วัดได้ ${r.measured != null ? measText(r) : '-'} · ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}</h3>${await imgs(r)}</div>`;
+  for (const r of recs) html += `<div class="pr"><h3>${esc(r.label)} · ${esc(KINDS[r.kind].label)} · เกณฑ์ ${ruleText(r)} · วัดได้ ${hasMeas(r) ? measText(r) : '-'} · ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}</h3>${await imgs(r)}</div>`;
   $('#print').innerHTML = html; await new Promise(r => setTimeout(r, 300)); print();
   setTimeout(() => urls.forEach(URL.revokeObjectURL), 20000);
 };
@@ -560,7 +569,7 @@ function initViewer() {
         ray.params.Points.threshold = size * .01;
         if (!vState.pin) {
           const h = ray.intersectObjects(pins.children)[0];
-          if (h) { const r = h.object.userData.rec; toast(`${r.label} — ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}${r.measured != null ? ' · วัดได้ ' + measText(r) : ''}`, 3500); }
+          if (h) { const r = h.object.userData.rec; toast(`${r.label} — ${{ pass: 'ผ่าน', fail: 'ไม่ผ่าน', pending: 'รอวัด' }[judge(r)]}${hasMeas(r) ? ' · วัดได้ ' + measText(r) : ''}`, 3500); }
           return;
         }
         const id = $('#pinRec').value; if (!id) { toast('เลือกบันทึกที่จะปักหมุดก่อน'); return; }
